@@ -1,0 +1,10 @@
+name: FastBenchmark
+author: Meigo™ Corporation
+version: 1.0
+description: A comprehensive Minecraft server benchmarking plugin for performance monitoring and analysis
+main: meigo.north.MeigoPlugin
+api-version: 1.20
+commands:
+  cpubar:
+    description: Toggle CPU monitoring boss bar for players
+    usage: /cpubar <player>
