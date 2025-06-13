@@ -1,0 +1,11 @@
+# discord @glebbb
+# https://github.com/meigoc/FastBenchmark
+
+# URL for downloading the test file.
+# You can use any direct URL to a large file.
+download-url: "https://speedtest.selectel.ru/10GB"
+
+# Name of the temporary folder inside the plugin directory,
+# where the file will be saved during the test.
+# This folder and its contents will be deleted after the test.
+temp-folder: "tmp"

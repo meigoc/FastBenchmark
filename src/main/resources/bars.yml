@@ -1,0 +1,57 @@
+# discord @glebbb
+# https://github.com/meigoc/FastBenchmark
+
+# If true, the plugin will try to override /rambar if it's taken by another plugin.
+# If false, and /rambar is taken, the plugin will register /realrambar instead.
+rambar-override-command: true
+
+# Update interval for the bars in milliseconds (20 ticks = 1000ms)
+update-intervals:
+  cpubar: 1000
+  rambar: 3000
+  noderambar: 5000
+
+# --- CPU Bar Settings ---
+cpubar:
+  thresholds:
+    yellow: 70.0
+    red: 90.0
+  colors:
+    # Bar colors: BLUE, GREEN, PINK, PURPLE, RED, WHITE, YELLOW
+    default: 'GREEN'
+    yellow: 'YELLOW'
+    red: 'RED'
+  number-color-codes:
+    # Text colors for the numbers
+    default: '&a'
+    medium: '&e'
+    high: '&c'
+
+# --- RAM Bar (Process RAM) Settings ---
+rambar:
+  thresholds:
+    yellow: 70.0
+    red: 90.0
+  colors:
+    default: 'GREEN'
+    yellow: 'YELLOW'
+    red: 'RED'
+  number-color-codes:
+    default: '&a' # default color
+    medium: '&e' # color for yellow threshold
+    high: '&c'   # color for red threshold
+
+# --- Node RAM Bar (System) Settings ---
+noderambar:
+  thresholds:
+    yellow: 70.0
+    red: 90.0
+  colors:
+    default: 'GREEN'
+    yellow: 'YELLOW'
+    red: 'RED'
+  number-color-codes:
+    # Example of using the "dark" theme you suggested
+    default: '&2'
+    medium: '&6'
+    high: '&4'
