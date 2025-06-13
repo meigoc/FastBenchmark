@@ -253,12 +253,12 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             UUID uuid = player.getUniqueId();
             if (activeBars.containsKey(uuid)) {
                 Optional.ofNullable(activeBars.remove(uuid)).ifPresent(BossBar::removeAll);
-                sender.sendMessage(color("&a" + barType + "bar toggled &cOFF &afor " + player.getName()));
+                sender.sendMessage(color("&a" + barType + " toggled &cOFF &afor " + player.getName()));
             } else {
                 BossBar bar = Bukkit.createBossBar("", BarColor.GREEN, BarStyle.SOLID);
                 bar.addPlayer(player);
                 activeBars.put(uuid, bar);
-                sender.sendMessage(color("&a" + barType + "bar toggled &aON &afor " + player.getName()));
+                sender.sendMessage(color("&a" + barType + " toggled &aON &afor " + player.getName()));
             }
         }
 

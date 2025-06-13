@@ -1,6 +1,6 @@
 name: FastBenchmark
 author: Meigo™ Corporation
-version: 1.5
+version: 1.2
 description: A comprehensive Minecraft server benchmarking plugin for performance monitoring and analysis.
 main: meigo.north.MeigoPlugin
 api-version: '1.20'

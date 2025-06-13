@@ -16,12 +16,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -30,7 +28,6 @@ public class EntityTest implements Listener {
     private final MeigoPlugin plugin;
     private boolean isRunning = false;
 
-    private Player testPlayer;
     private UUID testPlayerId;
     private final List<Entity> spawnedMobs = new ArrayList<>();
     private final List<Double> tpsSamples = new ArrayList<>();
@@ -41,9 +38,32 @@ public class EntityTest implements Listener {
     private BukkitTask monitorTask;
 
     private static final int TEST_DURATION_SECONDS = 30;
+    private static final int SPAWN_CHUNK_RADIUS = 5;
+    private static final int MAX_SPAWNS_PER_TICK = 250;
+
     private static final EntityType[] MOB_TYPES = {
-            EntityType.ZOMBIE, EntityType.SKELETON, EntityType.SPIDER, EntityType.CREEPER,
-            EntityType.PIG, EntityType.COW, EntityType.SHEEP, EntityType.CHICKEN
+            // Hostile Mobs
+            EntityType.WARDEN, EntityType.ZOMBIE, EntityType.SKELETON,
+            EntityType.CREEPER, EntityType.SPIDER, EntityType.ENDERMAN, EntityType.SLIME, EntityType.WITCH,
+            EntityType.ZOMBIE_VILLAGER, EntityType.HUSK, EntityType.STRAY, EntityType.DROWNED, EntityType.CAVE_SPIDER,
+            EntityType.SILVERFISH, EntityType.ENDERMITE, EntityType.GUARDIAN, EntityType.ELDER_GUARDIAN,
+            EntityType.PILLAGER, EntityType.VINDICATOR, EntityType.EVOKER, EntityType.RAVAGER, EntityType.VEX,
+            EntityType.PHANTOM, EntityType.GHAST, EntityType.MAGMA_CUBE, EntityType.BLAZE, EntityType.PIGLIN,
+            EntityType.PIGLIN_BRUTE, EntityType.HOGLIN, EntityType.ZOGLIN, EntityType.ZOMBIFIED_PIGLIN,
+            EntityType.WITHER_SKELETON, EntityType.SHULKER,
+
+            // Neutral Mobs
+            EntityType.IRON_GOLEM, EntityType.WOLF, EntityType.POLAR_BEAR, EntityType.PANDA, EntityType.GOAT,
+            EntityType.BEE, EntityType.DOLPHIN, EntityType.LLAMA, EntityType.TRADER_LLAMA, EntityType.PUFFERFISH,
+
+            // Passive Mobs
+            EntityType.ALLAY, EntityType.SNIFFER, EntityType.CAMEL, EntityType.FROG,
+            EntityType.TADPOLE, EntityType.AXOLOTL, EntityType.GLOW_SQUID, EntityType.PIG, EntityType.COW,
+            EntityType.SHEEP, EntityType.CHICKEN, EntityType.HORSE, EntityType.DONKEY, EntityType.MULE,
+            EntityType.SKELETON_HORSE, EntityType.ZOMBIE_HORSE, EntityType.RABBIT, EntityType.BAT,
+            EntityType.VILLAGER, EntityType.WANDERING_TRADER, EntityType.CAT, EntityType.OCELOT, EntityType.FOX,
+            EntityType.TURTLE, EntityType.COD, EntityType.SALMON, EntityType.TROPICAL_FISH, EntityType.SQUID,
+            EntityType.STRIDER
     };
 
     public EntityTest(MeigoPlugin plugin) {
@@ -57,104 +77,121 @@ public class EntityTest implements Listener {
         }
 
         this.isRunning = true;
-        this.testPlayer = player;
         this.testPlayerId = player.getUniqueId();
+        clearPreviousData();
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
+        player.sendMessage(ChatColor.GOLD + "Starting entity benchmark with a target of " + maxEntities + " entities (AI Enabled).");
 
-        player.sendMessage(ChatColor.GOLD + "Starting entity benchmark for " + TEST_DURATION_SECONDS + " seconds...");
+        int ticks = TEST_DURATION_SECONDS * 20;
+        int entitiesPerTick = (int) Math.ceil((double) maxEntities / ticks);
+        final int spawnRate = Math.min(MAX_SPAWNS_PER_TICK, Math.max(1, entitiesPerTick));
 
-        spawnerTask = new BukkitRunnable() {
-            final int spawnRadius = 160;
-            @Override
-            public void run() {
-                if (spawnedMobs.size() >= maxEntities) {
-                    this.cancel();
-                    return;
-                }
-
-                World world = player.getWorld();
-                Random random = ThreadLocalRandom.current();
-
-                for (int i = 0; i < 20; i++) {
-                    if (spawnedMobs.size() >= maxEntities) break;
-
-                    Location loc = player.getLocation().add(random.nextInt(spawnRadius*2) - spawnRadius, 0, random.nextInt(spawnRadius*2) - spawnRadius);
-                    Location spawnLoc = world.getHighestBlockAt(loc).getLocation().add(0, 1, 0);
-
-                    if (!spawnLoc.getChunk().isLoaded()) continue;
-
-                    EntityType type = MOB_TYPES[random.nextInt(MOB_TYPES.length)];
-                    Entity spawned = world.spawnEntity(spawnLoc, type);
-
-                    spawned.setInvulnerable(true);
-                    spawned.setPersistent(false);
-                    if (spawned instanceof Ageable) {
-                        ((Ageable) spawned).setAdult();
-                    }
-                    spawnedMobs.add(spawned);
-                }
+        spawnerTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (spawnedMobs.size() >= maxEntities) {
+                return;
             }
-        }.runTaskTimer(plugin, 0L, 1L);
 
-        monitorTask = new BukkitRunnable() {
-            int secondsLeft = TEST_DURATION_SECONDS;
-            @Override
-            public void run() {
-                double currentTps = TpsUtils.getTps()[0];
-                tpsSamples.add(currentTps);
+            Player p = Bukkit.getPlayer(testPlayerId);
+            if (p == null) return;
 
-                int avgPing = (int) Bukkit.getOnlinePlayers().stream().mapToInt(Player::getPing).average().orElse(0);
-                pingSamples.add(avgPing);
+            World world = p.getWorld();
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            final int spawnRadius = SPAWN_CHUNK_RADIUS * 16;
 
-                String tpsColor = currentTps > 18 ? "§a" : (currentTps > 15 ? "§e" : "§c");
-                String message = String.format("§eTime: §f%ds §8| §eTPS: %s%.2f §8| §eAvg Ping: §f%dms",
-                        secondsLeft, tpsColor, currentTps, avgPing);
-                player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(message));
+            for (int i = 0; i < spawnRate; i++) {
+                if (spawnedMobs.size() >= maxEntities) break;
 
-                if (--secondsLeft < 0) {
-                    stopTest(true);
-                }
+                Location center = p.getLocation();
+                double randomX = random.nextInt(spawnRadius * 2) - spawnRadius;
+                double randomZ = random.nextInt(spawnRadius * 2) - spawnRadius;
+                Location loc = center.clone().add(randomX, 0, randomZ);
+
+                Location spawnLoc = world.getHighestBlockAt(loc).getLocation().add(0, 1, 0);
+                if (!spawnLoc.getChunk().isLoaded()) continue;
+
+                EntityType type = MOB_TYPES[random.nextInt(MOB_TYPES.length)];
+                Entity spawned = world.spawnEntity(spawnLoc, type);
+                configureSpawnedEntity(spawned);
+                spawnedMobs.add(spawned);
             }
-        }.runTaskTimer(plugin, 0L, 20L);
+        }, 0L, 1L);
 
-        mainTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (isRunning) stopTest(true);
+        monitorTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            Player p = Bukkit.getPlayer(testPlayerId);
+            if (p == null || !p.isOnline()) {
+                stopTest(false);
+                return;
             }
-        }.runTaskLater(plugin, TEST_DURATION_SECONDS * 20L);
+
+            double currentTps = TpsUtils.getTps()[0];
+            tpsSamples.add(currentTps);
+
+            int currentPing = p.getPing();
+            pingSamples.add(currentPing);
+
+            String tpsColor = currentTps > 18 ? "§a" : (currentTps > 15 ? "§e" : "§c");
+            String message = String.format("§eEntities: §f%d/%d §8| §eTPS: %s%.2f §8| §ePing: §f%dms",
+                    spawnedMobs.size(), maxEntities, tpsColor, currentTps, currentPing);
+            p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(message));
+
+        }, 0L, 20L);
+
+        mainTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> stopTest(true), ticks);
     }
 
     public void stopTest(boolean graceful) {
         if (!isRunning) return;
 
+        cancelTasks();
+        spawnedMobs.forEach(Entity::remove);
+        HandlerList.unregisterAll(this);
+
+        Player player = Bukkit.getPlayer(testPlayerId);
+        if (player != null && player.isOnline()) {
+            if (graceful) {
+                sendResults(player);
+            } else {
+                player.sendMessage(ChatColor.RED + "Entity benchmark was stopped prematurely.");
+            }
+        }
+
+        clearPreviousData();
+        isRunning = false;
+    }
+
+    private void configureSpawnedEntity(Entity entity) {
+        entity.setInvulnerable(true);
+        entity.setPersistent(false);
+        if (entity instanceof Ageable) {
+            ((Ageable) entity).setAdult();
+        }
+        // AI is now enabled by default, no need to call setAware(false)
+    }
+
+    private void sendResults(Player player) {
+        double avgTps = tpsSamples.stream().mapToDouble(d -> d).average().orElse(0);
+        double avgPing = pingSamples.stream().mapToInt(i -> i).average().orElse(0);
+
+        player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText("§aBenchmark Finished!"));
+        player.sendMessage(ChatColor.GREEN + "===== Entity Benchmark Results (AI Enabled) =====");
+        player.sendMessage(String.format(ChatColor.YELLOW + "Total entities spawned: %d", spawnedMobs.size()));
+        player.sendMessage(String.format(ChatColor.YELLOW + "Average TPS: %.2f", avgTps));
+        player.sendMessage(String.format(ChatColor.YELLOW + "Your Average Ping: %.0fms", avgPing));
+        player.sendMessage(ChatColor.GREEN + "=============================================");
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
+    }
+
+    private void cancelTasks() {
         if (mainTask != null) mainTask.cancel();
         if (spawnerTask != null) spawnerTask.cancel();
         if (monitorTask != null) monitorTask.cancel();
+    }
 
-        spawnedMobs.forEach(Entity::remove);
+    private void clearPreviousData() {
         spawnedMobs.clear();
-
-        HandlerList.unregisterAll(this);
-
-        if (graceful && testPlayer != null && testPlayer.isOnline()) {
-            double avgTps = tpsSamples.stream().mapToDouble(d -> d).average().orElse(0);
-            double avgPing = pingSamples.stream().mapToInt(i -> i).average().orElse(0);
-
-            testPlayer.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText("§aTest finished!"));
-            testPlayer.sendMessage(ChatColor.GREEN + "===== Entity Benchmark Results =====");
-            testPlayer.sendMessage(String.format(ChatColor.YELLOW + "Average TPS: %.2f", avgTps));
-            testPlayer.sendMessage(String.format(ChatColor.YELLOW + "Average Ping (all players): %.0fms", avgPing));
-            testPlayer.sendMessage(ChatColor.GREEN + "================================");
-            testPlayer.playSound(testPlayer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
-        } else if (testPlayer != null && testPlayer.isOnline()) {
-            testPlayer.sendMessage(ChatColor.RED + "Entity benchmark was stopped prematurely.");
-        }
-
         tpsSamples.clear();
         pingSamples.clear();
-        this.isRunning = false;
     }
 
     @EventHandler
