@@ -1,10 +1,9 @@
 package meigo.north;
 
 import com.sun.management.OperatingSystemMXBean;
-import meigo.north.commands.AddRamCommand;
-import meigo.north.commands.FastBenchmarkCommand;
-import meigo.north.commands.RamFreeCommand;
-import meigo.north.commands.SpeedTestCommand;
+import meigo.north.commands.*;
+import meigo.north.config.TestsConfig;
+import meigo.north.hooks.PlaceholderAPIHook;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
@@ -12,11 +11,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.command.PluginCommand;
-import org.bukkit.command.TabCompleter;
+import org.bukkit.command.*;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -29,8 +24,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.StringUtil;
-import oshi.SystemInfo;
-import oshi.hardware.GlobalMemory;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -55,34 +48,48 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
     private boolean overrideRamCommand;
 
     private RamAllocator ramAllocator;
+    private TestsConfig testsConfig;
+    private SystemInfoManager systemInfoManager;
+
+    // Feature availability flags
+    private boolean oshiAvailable = false;
+    private boolean placeholderAPIAvailable = false;
 
     @Override
     public void onEnable() {
+        // Check dependencies
+        checkDependencies();
+
         loadConfig();
         setupMonitors();
         setupCommands();
+
         Bukkit.getPluginManager().registerEvents(this, this);
 
         ramAllocator = new RamAllocator(this);
+        testsConfig = new TestsConfig(this);
 
-        File speedTestConfigFile = new File(getDataFolder(), "speedtest.yml");
-        if (!speedTestConfigFile.exists()) {
-            getConfig().options().copyDefaults(true);
-            saveResource("speedtest.yml", false);
+        if (oshiAvailable) {
+            systemInfoManager = new SystemInfoManager(this);
         }
 
-        getCommand("addram").setExecutor(new AddRamCommand(ramAllocator));
-        getCommand("ramfree").setExecutor(new RamFreeCommand(ramAllocator));
-        getCommand("speedtest").setExecutor(new SpeedTestCommand(this));
+        // Create config files
+        saveDefaultConfigs();
 
-        getCommand("fastbenchmark").setExecutor(new FastBenchmarkCommand(this));
+        // Register PlaceholderAPI expansion if available
+        if (placeholderAPIAvailable) {
+            new PlaceholderAPIHook(this).register();
+        }
 
+        getLogger().info(formatHexColor("&#00FF00FastBenchmark v1.3 has been enabled!"));
 
-        getLogger().info("FastBenchmark has been enabled!");
-        String message = "§6§lJust a simple test message!";
-        Player player = Bukkit.getPlayer("ExamplePlayer");
-
-
+        // Log feature availability
+        if (!oshiAvailable) {
+            getLogger().warning(formatHexColor("&#FF0000OSHI-core not found. /fb stats and /noderambar disabled."));
+        }
+        if (!placeholderAPIAvailable) {
+            getLogger().info(formatHexColor("&#FFFF00PlaceholderAPI not found. Placeholders disabled."));
+        }
     }
 
     @Override
@@ -103,7 +110,32 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             ramAllocator.freeAllocatedRam();
         }
 
-        getLogger().info("FastBenchmark has been disabled.");
+        getLogger().info(formatHexColor("&#FF0000FastBenchmark has been disabled."));
+    }
+
+    private void checkDependencies() {
+        // Check for OSHI
+        try {
+            Class.forName("oshi.SystemInfo");
+            oshiAvailable = true;
+        } catch (ClassNotFoundException e) {
+            oshiAvailable = false;
+        }
+
+        // Check for PlaceholderAPI
+        placeholderAPIAvailable = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
+    }
+
+    private void saveDefaultConfigs() {
+        File speedTestConfigFile = new File(getDataFolder(), "speedtest.yml");
+        if (!speedTestConfigFile.exists()) {
+            saveResource("speedtest.yml", false);
+        }
+
+        File testsConfigFile = new File(getDataFolder(), "tests.yml");
+        if (!testsConfigFile.exists()) {
+            saveResource("tests.yml", false);
+        }
     }
 
     private void loadConfig() {
@@ -118,16 +150,23 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
     private void setupMonitors() {
         cpuMonitor = new CpuMonitor();
         ramMonitor = new RamMonitor();
-        nodeRamMonitor = new NodeRamMonitor();
         cpuMonitor.start();
         ramMonitor.start();
-        nodeRamMonitor.start();
+
+        if (oshiAvailable) {
+            nodeRamMonitor = new NodeRamMonitor();
+            nodeRamMonitor.start();
+        }
     }
 
     private void setupCommands() {
         registerCommand("cpubar", new BarCommandExecutor(activeCpuBars, "cpubar"));
-        registerCommand("noderambar", new BarCommandExecutor(activeNodeRamBars, "noderambar"));
 
+        if (oshiAvailable) {
+            registerCommand("noderambar", new BarCommandExecutor(activeNodeRamBars, "noderambar"));
+        } else {
+            registerCommand("noderambar", new DisabledCommandExecutor("noderambar"));
+        }
 
         PluginCommand rambarPluginCommand = Bukkit.getPluginCommand("rambar");
         boolean isRamBarRegisteredByOther = rambarPluginCommand != null && rambarPluginCommand.getPlugin() != this;
@@ -145,16 +184,59 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
                 registerCommand("rambar", new BarCommandExecutor(activeRamBars, "rambar"));
             }
         }
+
+        getCommand("addram").setExecutor(new AddRamCommand(ramAllocator));
+        getCommand("ramfree").setExecutor(new RamFreeCommand(ramAllocator));
+        getCommand("speedtest").setExecutor(new SpeedTestCommand(this));
+        getCommand("fastbenchmark").setExecutor(new FastBenchmarkCommand(this));
     }
 
-    private void registerCommand(String name, BarCommandExecutor executor) {
+    private void registerCommand(String name, CommandExecutor executor) {
         PluginCommand command = getCommand(name);
         if (command != null) {
             command.setExecutor(executor);
-            command.setTabCompleter(executor);
+            if (executor instanceof TabCompleter) {
+                command.setTabCompleter((TabCompleter) executor);
+            }
         } else {
             getLogger().severe("Command '" + name + "' is not registered in plugin.yml! Please add it.");
         }
+    }
+
+    // Getters for other classes
+    public boolean isOshiAvailable() {
+        return oshiAvailable;
+    }
+
+    public boolean isPlaceholderAPIAvailable() {
+        return placeholderAPIAvailable;
+    }
+
+    public TestsConfig getTestsConfig() {
+        return testsConfig;
+    }
+
+    public SystemInfoManager getSystemInfoManager() {
+        return systemInfoManager;
+    }
+
+    public Map<UUID, BossBar> getActiveCpuBars() {
+        return activeCpuBars;
+    }
+
+    public Map<UUID, BossBar> getActiveRamBars() {
+        return activeRamBars;
+    }
+
+    public Map<UUID, BossBar> getActiveNodeRamBars() {
+        return activeNodeRamBars;
+    }
+
+    public static String formatHexColor(String text) {
+        return ChatColor.translateAlternateColorCodes('&', text
+                .replaceAll("&#([A-Fa-f0-9]{6})", "§x§$1")
+                .replaceAll("§x§([A-Fa-f0-9])([A-Fa-f0-9])([A-Fa-f0-9])([A-Fa-f0-9])([A-Fa-f0-9])([A-Fa-f0-9])",
+                        "§x§$1§$2§$3§$4§$5§$6"));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -171,7 +253,6 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             }
         }
     }
-
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -191,15 +272,29 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
         if (activeNodeRamBars.containsKey(uuid)) activeNodeRamBars.get(uuid).removePlayer(player);
     }
 
-    private String color(String message) {
-        return ChatColor.translateAlternateColorCodes('&', message);
-    }
-
     private String formatBytes(long bytes) {
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         char pre = "KMGTPE".charAt(exp - 1);
         return String.format(Locale.US, "%.2f %sB", bytes / Math.pow(1024, exp), pre);
+    }
+
+    // Command executor for disabled features
+    private class DisabledCommandExecutor implements CommandExecutor {
+        private final String feature;
+
+        public DisabledCommandExecutor(String feature) {
+            this.feature = feature;
+        }
+
+        @Override
+        public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+            sender.sendMessage(formatHexColor("&#FF0000OSHI-core library not found for /" + feature + "."));
+            sender.sendMessage(formatHexColor("&#FF0000&lPossible reasons:"));
+            sender.sendMessage(formatHexColor("&#FF00001. Your server core doesn't include oshi-core as a dependency."));
+            sender.sendMessage(formatHexColor("&#FF00002. You're using an old Minecraft version without oshi-core."));
+            return true;
+        }
     }
 
     private class BarCommandExecutor implements CommandExecutor, TabCompleter {
@@ -214,11 +309,11 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
         @Override
         public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
             if (!sender.isOp()) {
-                sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                sender.sendMessage(formatHexColor("&#FF0000You do not have permission to use this command."));
                 return true;
             }
             if (args.length != 1) {
-                sender.sendMessage(ChatColor.RED + "Usage: /" + label + " <player|@a|@p|@r>");
+                sender.sendMessage(formatHexColor("&#FF0000Usage: /" + label + " <player|@a|@p|@r>"));
                 return true;
             }
 
@@ -234,14 +329,14 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             } else {
                 Player player = Bukkit.getPlayer(targetArg);
                 if (player == null) {
-                    sender.sendMessage(ChatColor.RED + "Player not found: " + targetArg);
+                    sender.sendMessage(formatHexColor("&#FF0000Player not found: " + targetArg));
                     return true;
                 }
                 targets.add(player);
             }
 
             if (targets.isEmpty()) {
-                sender.sendMessage(ChatColor.RED + "No players matched the selector.");
+                sender.sendMessage(formatHexColor("&#FF0000No players matched the selector."));
                 return true;
             }
 
@@ -253,12 +348,12 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             UUID uuid = player.getUniqueId();
             if (activeBars.containsKey(uuid)) {
                 Optional.ofNullable(activeBars.remove(uuid)).ifPresent(BossBar::removeAll);
-                sender.sendMessage(color("&a" + barType + " toggled &cOFF &afor " + player.getName()));
+                sender.sendMessage(formatHexColor("&#00FF00" + barType + " toggled &#FF0000OFF &#00FF00for " + player.getName()));
             } else {
                 BossBar bar = Bukkit.createBossBar("", BarColor.GREEN, BarStyle.SOLID);
                 bar.addPlayer(player);
                 activeBars.put(uuid, bar);
-                sender.sendMessage(color("&a" + barType + " toggled &aON &afor " + player.getName()));
+                sender.sendMessage(formatHexColor("&#00FF00" + barType + " toggled &#00FF00ON &#00FF00for " + player.getName()));
             }
         }
 
@@ -300,17 +395,17 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             String path = type + ".number-color-codes.";
             String colorCode;
             if (percentage >= barConfig.getDouble(type + ".thresholds.red", 90.0)) {
-                colorCode = barConfig.getString(path + "high", "&c");
+                colorCode = barConfig.getString(path + "high", "&#FF0000");
             } else if (percentage >= barConfig.getDouble(type + ".thresholds.yellow", 70.0)) {
-                colorCode = barConfig.getString(path + "medium", "&e");
+                colorCode = barConfig.getString(path + "medium", "&#FFFF00");
             } else {
-                colorCode = barConfig.getString(path + "default", "&a");
+                colorCode = barConfig.getString(path + "default", "&#00FF00");
             }
-            return color(colorCode);
+            return formatHexColor(colorCode);
         }
     }
 
-    private class CpuMonitor extends Monitor {
+    public class CpuMonitor extends Monitor {
         private final OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
         private final int coreCount = Runtime.getRuntime().availableProcessors();
         private final double maxCpu = 100.0 * coreCount;
@@ -329,7 +424,8 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
                     double percentageForColor = totalCpu / coreCount;
                     String numberColor = getNumberColor(percentageForColor, "cpubar");
 
-                    String title = String.format(Locale.US, "§7CPU: %s%.1f%% §7/ %.1f%%", numberColor, totalCpu, maxCpu);
+                    String title = String.format(Locale.US, formatHexColor("&#808080CPU: %s%.1f%% &#808080/ %.1f%%"),
+                            numberColor, totalCpu, maxCpu);
                     double progress = Math.min(1.0, totalCpu / maxCpu);
                     BarColor color = getBarColor(percentageForColor, "cpubar");
 
@@ -342,11 +438,25 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             };
             task.runTaskTimerAsynchronously(MeigoPlugin.this, 0L, interval);
         }
+
+        public double getCpuLoad() {
+            return osBean.getProcessCpuLoad() * 100.0 * coreCount;
+        }
+
+        public double getMaxCpuLoad() {
+            return maxCpu;
+        }
+
+        public int getCpuThreads() {
+            return coreCount;
+        }
     }
 
-    private class RamMonitor extends Monitor {
+    public class RamMonitor extends Monitor {
         private final boolean isLinux = System.getProperty("os.name").toLowerCase().contains("linux");
         private final long pid = ProcessHandle.current().pid();
+        private long lastUsedMemory = 0;
+        private long lastMaxMemory = 0;
 
         @Override
         public void start() {
@@ -354,40 +464,47 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
             task = new BukkitRunnable() {
                 @Override
                 public void run() {
-                    if (activeRamBars.isEmpty()) return;
+                    if (activeRamBars.isEmpty() && !placeholderAPIAvailable) return;
 
                     if (!isLinux) {
-                        activeRamBars.values().forEach(bar -> {
-                            bar.setTitle("§cProcess RAM monitor is only supported on Linux");
-                            bar.setProgress(1.0);
-                            bar.setColor(BarColor.RED);
-                        });
+                        lastUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+                        lastMaxMemory = Runtime.getRuntime().maxMemory();
+
+                        if (!activeRamBars.isEmpty()) {
+                            activeRamBars.values().forEach(bar -> {
+                                bar.setTitle(formatHexColor("&#FF0000Process RAM monitor is only supported on Linux"));
+                                bar.setProgress(1.0);
+                                bar.setColor(BarColor.RED);
+                            });
+                        }
                         return;
                     }
 
-                    long usedMemory;
                     try {
-                        usedMemory = getProcessRssBytes();
+                        lastUsedMemory = getProcessRssBytes();
+                        lastMaxMemory = Runtime.getRuntime().maxMemory();
                     } catch (IOException | InterruptedException e) {
                         getLogger().warning("Failed to get process RAM: " + e.getMessage());
-                        activeRamBars.values().forEach(bar -> {
-                            bar.setTitle("§cError getting process RAM usage");
-                            bar.setProgress(1.0);
-                            bar.setColor(BarColor.RED);
-                        });
+                        if (!activeRamBars.isEmpty()) {
+                            activeRamBars.values().forEach(bar -> {
+                                bar.setTitle(formatHexColor("&#FF0000Error getting process RAM usage"));
+                                bar.setProgress(1.0);
+                                bar.setColor(BarColor.RED);
+                            });
+                        }
                         return;
                     }
 
-                    long maxMemory = Runtime.getRuntime().maxMemory();
-                    double percentage = maxMemory > 0 ? ((double) usedMemory / maxMemory) * 100.0 : 0.0;
+                    double percentage = lastMaxMemory > 0 ? ((double) lastUsedMemory / lastMaxMemory) * 100.0 : 0.0;
                     String numberColor = getNumberColor(percentage, "rambar");
 
-                    String usedStr = formatBytes(usedMemory);
-                    String maxStr = formatBytes(maxMemory);
+                    String usedStr = formatBytes(lastUsedMemory);
+                    String maxStr = formatBytes(lastMaxMemory);
                     String percStr = String.format(Locale.US, "%.1f", percentage);
 
-                    String title = "§7Process RAM: " + numberColor + usedStr + " §7/ " + maxStr + " (" + numberColor + percStr + "%§7)";
-                    double progress = Math.min(1.0, (double) usedMemory / maxMemory);
+                    String title = formatHexColor("&#808080Process RAM: " + numberColor + usedStr +
+                            " &#808080/ " + maxStr + " (" + numberColor + percStr + "%&#808080)");
+                    double progress = Math.min(1.0, (double) lastUsedMemory / lastMaxMemory);
                     BarColor color = getBarColor(percentage, "rambar");
 
                     activeRamBars.values().forEach(bar -> {
@@ -413,41 +530,89 @@ public class MeigoPlugin extends JavaPlugin implements Listener {
                 }
             }
         }
+
+        public long getUsedMemory() {
+            return lastUsedMemory;
+        }
+
+        public long getMaxMemory() {
+            return lastMaxMemory;
+        }
     }
 
-    private class NodeRamMonitor extends Monitor {
-        private final SystemInfo systemInfo = new SystemInfo();
+    public class NodeRamMonitor extends Monitor {
+        private oshi.SystemInfo systemInfo;
+        private long lastUsedMemory = 0;
+        private long lastTotalMemory = 0;
+
+        public NodeRamMonitor() {
+            if (oshiAvailable) {
+                try {
+                    systemInfo = new oshi.SystemInfo();
+                } catch (Exception e) {
+                    getLogger().severe("Failed to initialize OSHI SystemInfo: " + e.getMessage());
+                }
+            }
+        }
 
         @Override
         public void start() {
+            if (!oshiAvailable || systemInfo == null) return;
+
             long interval = barConfig.getLong("update-intervals.noderambar", 5000) / 50;
             task = new BukkitRunnable() {
                 @Override
                 public void run() {
-                    if (activeNodeRamBars.isEmpty()) return;
+                    if (activeNodeRamBars.isEmpty() && !placeholderAPIAvailable) return;
 
-                    GlobalMemory memory = systemInfo.getHardware().getMemory();
-                    long total = memory.getTotal();
-                    long used = total - memory.getAvailable();
-                    double percentage = ((double) used / total) * 100.0;
-                    String numberColor = getNumberColor(percentage, "noderambar");
+                    try {
+                        oshi.hardware.GlobalMemory memory = systemInfo.getHardware().getMemory();
+                        lastTotalMemory = memory.getTotal();
+                        lastUsedMemory = lastTotalMemory - memory.getAvailable();
+                        double percentage = ((double) lastUsedMemory / lastTotalMemory) * 100.0;
+                        String numberColor = getNumberColor(percentage, "noderambar");
 
-                    String usedStr = formatBytes(used);
-                    String totalStr = formatBytes(total);
-                    String percStr = String.format(Locale.US, "%.1f", percentage);
+                        String usedStr = formatBytes(lastUsedMemory);
+                        String totalStr = formatBytes(lastTotalMemory);
+                        String percStr = String.format(Locale.US, "%.1f", percentage);
 
-                    String title = "§7System RAM: " + numberColor + usedStr + " §7/ " + totalStr + " (" + numberColor + percStr + "%§7)";
-                    double progress = Math.min(1.0, percentage / 100.0);
-                    BarColor color = getBarColor(percentage, "noderambar");
+                        String title = formatHexColor("&#808080System RAM: " + numberColor + usedStr +
+                                " &#808080/ " + totalStr + " (" + numberColor + percStr + "%&#808080)");
+                        double progress = Math.min(1.0, percentage / 100.0);
+                        BarColor color = getBarColor(percentage, "noderambar");
 
-                    activeNodeRamBars.values().forEach(bar -> {
-                        bar.setTitle(title);
-                        bar.setProgress(progress);
-                        bar.setColor(color);
-                    });
+                        activeNodeRamBars.values().forEach(bar -> {
+                            bar.setTitle(title);
+                            bar.setProgress(progress);
+                            bar.setColor(color);
+                        });
+                    } catch (Exception e) {
+                        getLogger().warning("Error updating node RAM monitor: " + e.getMessage());
+                    }
                 }
             };
             task.runTaskTimerAsynchronously(MeigoPlugin.this, 0L, interval);
         }
+
+        public long getUsedMemory() {
+            return lastUsedMemory;
+        }
+
+        public long getTotalMemory() {
+            return lastTotalMemory;
+        }
+    }
+
+    // Getters for monitors
+    public CpuMonitor getCpuMonitor() {
+        return cpuMonitor;
+    }
+
+    public RamMonitor getRamMonitor() {
+        return ramMonitor;
+    }
+
+    public NodeRamMonitor getNodeRamMonitor() {
+        return nodeRamMonitor;
     }
 }

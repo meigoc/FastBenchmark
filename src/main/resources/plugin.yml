@@ -1,65 +1,40 @@
 name: FastBenchmark
 author: Meigo™ Corporation
-version: 1.2
+version: 1.3
 description: A comprehensive Minecraft server benchmarking plugin for performance monitoring and analysis.
 main: meigo.north.MeigoPlugin
-api-version: '1.20'
+api-version: 1.13
+softdepend: [PlaceholderAPI]
 commands:
-  cpubar:
-    description: Toggle CPU monitoring boss bar.
-    usage: /cpubar <player|@a|@p|@r>
-    permission: fastbenchmark.cpubar
-  rambar:
-    description: Toggle Process RAM monitoring boss bar (Linux only).
-    usage: /rambar <player|@a|@p|@r>
-    permission: fastbenchmark.rambar
-  realrambar:
-    description: Fallback command for Process RAM monitoring if /rambar is taken.
-    usage: /realrambar <player|@a|@p|@r>
-    permission: fastbenchmark.rambar
-  noderambar:
-    description: Toggle System RAM monitoring boss bar.
-    usage: /noderambar <player|@a|@p|@r>
-    permission: fastbenchmark.noderambar
-  addram:
-    description: Allocates a specified amount of RAM in megabytes.
-    usage: /addram <megabytes>
-    permission: rammanager.addram
-    permission-message: You don't have permission to use this command.
-  ramfree:
-    description: Frees the RAM allocated by /addram.
-    usage: /ramfree
-    permission: rammanager.ramfree
-    permission-message: You don't have permission to use this command.
-  speedtest:
-    description: Runs a network speed test.
-    usage: /speedtest
-    permission: fastbenchmark.speedtest
-    permission-message: You do not have permission to use this command.
   fastbenchmark:
-    description: Main command for the FastBenchmark plugin.
-    usage: /fastbenchmark <help|test>
-    aliases: [fastbench, fb]
-    permission: fastbenchmark.use
+    description: Main FastBenchmark command
+    aliases: [fb]
+    usage: /<command> help
+  cpubar:
+    description: Toggle CPU monitoring boss bar
+    usage: /<command> <player>
+  rambar:
+    description: Toggle RAM monitoring boss bar
+    usage: /<command> <player>
+  realrambar:
+    description: Toggle real RAM monitoring boss bar (fallback)
+    usage: /<command> <player>
+  noderambar:
+    description: Toggle system RAM monitoring boss bar
+    usage: /<command> <player>
+  addram:
+    description: Allocate RAM for testing
+    usage: /<command> <megabytes>
+  ramfree:
+    description: Free allocated RAM
+    usage: /<command>
+  speedtest:
+    description: Run network speed test
+    usage: /<command>
 permissions:
-  fastbenchmark.cpubar:
-    description: Allows usage of the /cpubar command.
-    default: op
-  fastbenchmark.rambar:
-    description: Allows usage of the /rambar command.
-    default: op
-  fastbenchmark.noderambar:
-    description: Allows usage of the /noderambar command.
-    default: op
-  rammanager.addram:
-    description: Allows players to use the /addram command.
-    default: op
-  rammanager.ramfree:
-    description: Allows players to use the /ramfree command.
+  fastbenchmark.admin:
+    description: Access to all FastBenchmark commands
     default: op
   fastbenchmark.speedtest:
-    description: Allows usage of the /speedtest command.
-    default: op
-  fastbenchmark.use:
-    description: Allows usage of the /fastbenchmark command.
+    description: Access to speed test command
     default: op

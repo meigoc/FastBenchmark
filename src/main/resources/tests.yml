@@ -1,0 +1,29 @@
+# discord @glebbb
+# https://github.com/meigoc/FastBenchmark
+# FastBenchmark Tests Configuration
+# Version: 1.3
+
+# World Generation Test Settings
+worldgen:
+  completion-sound: "ENTITY_PLAYER_LEVELUP"
+
+# Entity Test Settings
+entity:
+  completion-sound: "ENTITY_PLAYER_LEVELUP"
+  max-spawns-per-tick: 250
+  test-duration-seconds: 30
+
+# Particle Test Settings
+particles:
+  completion-sound: "ENTITY_PLAYER_LEVELUP"
+  max-particles-per-tick: 100
+
+# Chunk Load Test Settings
+chunksload:
+  completion-sound: "ENTITY_PLAYER_LEVELUP"
+  chunk-radius: 5
+
+# Players Test Settings
+players:
+  completion-sound: "ENTITY_PLAYER_LEVELUP"
+  players-per-second: 5

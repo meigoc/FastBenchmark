@@ -1,5 +1,7 @@
 # discord @glebbb
 # https://github.com/meigoc/FastBenchmark
+# FastBenchmark Bars Configuration
+# Version: 1.3
 
 # If true, the plugin will try to override /rambar if it's taken by another plugin.
 # If false, and /rambar is taken, the plugin will register /realrambar instead.

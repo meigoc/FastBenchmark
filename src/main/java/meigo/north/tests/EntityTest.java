@@ -43,28 +43,26 @@ public class EntityTest implements Listener {
 
     private static final EntityType[] MOB_TYPES = {
             // Hostile Mobs
-            EntityType.WARDEN, EntityType.ZOMBIE, EntityType.SKELETON,
+            EntityType.ZOMBIE, EntityType.SKELETON,
             EntityType.CREEPER, EntityType.SPIDER, EntityType.ENDERMAN, EntityType.SLIME, EntityType.WITCH,
-            EntityType.ZOMBIE_VILLAGER, EntityType.HUSK, EntityType.STRAY, EntityType.DROWNED, EntityType.CAVE_SPIDER,
+            EntityType.ZOMBIE_VILLAGER, EntityType.HUSK, EntityType.STRAY, EntityType.CAVE_SPIDER,
             EntityType.SILVERFISH, EntityType.ENDERMITE, EntityType.GUARDIAN, EntityType.ELDER_GUARDIAN,
-            EntityType.PILLAGER, EntityType.VINDICATOR, EntityType.EVOKER, EntityType.RAVAGER, EntityType.VEX,
-            EntityType.PHANTOM, EntityType.GHAST, EntityType.MAGMA_CUBE, EntityType.BLAZE, EntityType.PIGLIN,
-            EntityType.PIGLIN_BRUTE, EntityType.HOGLIN, EntityType.ZOGLIN, EntityType.ZOMBIFIED_PIGLIN,
+            EntityType.VINDICATOR, EntityType.EVOKER, EntityType.VEX,
+            EntityType.GHAST, EntityType.MAGMA_CUBE, EntityType.BLAZE,
             EntityType.WITHER_SKELETON, EntityType.SHULKER,
 
             // Neutral Mobs
-            EntityType.IRON_GOLEM, EntityType.WOLF, EntityType.POLAR_BEAR, EntityType.PANDA, EntityType.GOAT,
-            EntityType.BEE, EntityType.DOLPHIN, EntityType.LLAMA, EntityType.TRADER_LLAMA, EntityType.PUFFERFISH,
+            EntityType.IRON_GOLEM, EntityType.WOLF, EntityType.POLAR_BEAR,
+            EntityType.LLAMA,
 
             // Passive Mobs
-            EntityType.ALLAY, EntityType.SNIFFER, EntityType.CAMEL, EntityType.FROG,
-            EntityType.TADPOLE, EntityType.AXOLOTL, EntityType.GLOW_SQUID, EntityType.PIG, EntityType.COW,
+            EntityType.PIG, EntityType.COW,
             EntityType.SHEEP, EntityType.CHICKEN, EntityType.HORSE, EntityType.DONKEY, EntityType.MULE,
             EntityType.SKELETON_HORSE, EntityType.ZOMBIE_HORSE, EntityType.RABBIT, EntityType.BAT,
-            EntityType.VILLAGER, EntityType.WANDERING_TRADER, EntityType.CAT, EntityType.OCELOT, EntityType.FOX,
-            EntityType.TURTLE, EntityType.COD, EntityType.SALMON, EntityType.TROPICAL_FISH, EntityType.SQUID,
-            EntityType.STRIDER
+            EntityType.VILLAGER, EntityType.OCELOT,
+            EntityType.SQUID
     };
+
 
     public EntityTest(MeigoPlugin plugin) {
         this.plugin = plugin;
